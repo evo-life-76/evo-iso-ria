@@ -1,5 +1,12 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
 enum Role { ADMIN USER }
 enum UserStatus { ACTIVE DISABLED }
 model User { id String @id @default(cuid()) name String email String @unique passwordHash String role Role @default(USER) status UserStatus @default(ACTIVE) lastLoginAt DateTime? createdAt DateTime @default(now()) updatedAt DateTime @updatedAt isometries Isometry[] @relation("CreatedBy") }

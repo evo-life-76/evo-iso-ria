@@ -2,15 +2,22 @@ services:
   - type: web
     name: evo-iso-ria
     runtime: node
-    buildCommand: npm install && npm run build
+    plan: free
+    region: frankfurt
+
+    buildCommand: npm ci && npx prisma generate && npm run build
     startCommand: npm run start
     healthCheckPath: /
+
     envVars:
       - key: NODE_VERSION
         value: 22.16.0
+
       - key: DATABASE_URL
         sync: false
+
       - key: DIRECT_URL
         sync: false
+
       - key: AUTH_SECRET
         generateValue: true

@@ -1,4 +1,415 @@
-'use client';import {useEffect,useRef,useState} from 'react';
-type Node={id:string;x:number;y:number;kind:'start'|'junction'|'ria';label?:string};type Seg={id:string,a:string;b:string;dn:number;length:number};
-const dirs=[[1,0],[-1,0],[.5,.866],[-.5,-.866],[.5,-.866],[-.5,.866],[0,1],[0,-1]];
-export default function IsoEditor({initial,onSave}:{initial:any;onSave:(d:any)=>void}){const [nodes,setNodes]=useState<Node[]>(initial.nodes?.length?initial.nodes:[{id:'n0',x:260,y:500,kind:'start',label:'Départ réseau'}]);const [segments,setSegments]=useState<Seg[]>(initial.segments||[]);const [selected,setSelected]=useState('n0');const [tool,setTool]=useState<'pipe'|'ria'|'delete'>('pipe');const [dn,setDn]=useState(65);const [length,setLength]=useState(10);const timer=useRef<any>();useEffect(()=>{clearTimeout(timer.current);timer.current=setTimeout(()=>onSave({nodes,segments,settings:{dn,length}}),700)},[nodes,segments,dn,length]);function click(e:React.MouseEvent<SVGSVGElement>){if((e.target as Element).tagName!=='svg')return;const rect=e.currentTarget.getBoundingClientRect();let x=e.clientX-rect.left,y=e.clientY-rect.top;const base=nodes.find(n=>n.id===selected)||nodes[0];const dx=x-base.x,dy=y-base.y;const d=dirs.reduce((best,q)=>Math.abs(dx*q[0]+dy*q[1])>Math.abs(dx*best[0]+dy*best[1])?q:best,dirs[0]);const px=Math.round((dx*d[0]+dy*d[1])/40)*40;x=base.x+d[0]*px;y=base.y+d[1]*px;const id=crypto.randomUUID();const n:Node={id,x,y,kind:tool==='ria'?'ria':'junction',label:tool==='ria'?`RIA ${nodes.filter(n=>n.kind==='ria').length+1}`:undefined};setNodes(v=>[...v,n]);setSegments(v=>[...v,{id:crypto.randomUUID(),a:base.id,b:id,dn,length}]);setSelected(id)}function delNode(id:string){if(id==='n0')return;setNodes(v=>v.filter(n=>n.id!==id));setSegments(v=>v.filter(s=>s.a!==id&&s.b!==id));setSelected('n0')}return <div className="editor-shell"><aside><h3>Outils</h3><button className={tool==='pipe'?'active':''} onClick={()=>setTool('pipe')}>Tuyau</button><button className={tool==='ria'?'active':''} onClick={()=>setTool('ria')}>RIA</button><label>Diamètre<select value={dn} onChange={e=>setDn(+e.target.value)}>{[25,32,40,50,65,80,100].map(x=><option key={x}>DN{x}</option>)}</select></label><label>Longueur réelle<input type="number" value={length} onChange={e=>setLength(+e.target.value)}/></label><p>Clique un point, puis clique sur la grille. Le tracé est automatiquement verrouillé en direction isométrique.</p></aside><svg className="canvas" onClick={click} viewBox="0 0 1200 700"><defs><pattern id="grid" width="40" height="34.64" patternUnits="userSpaceOnUse"><path d="M0 34.64L20 0M20 0L40 34.64M0 17.32H40" fill="none" stroke="#e7ebf0" strokeWidth="1"/></pattern></defs><rect width="1200" height="700" fill="url(#grid)"/>{segments.map(s=>{const a=nodes.find(n=>n.id===s.a)!,b=nodes.find(n=>n.id===s.b)!;return <g key={s.id}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#111827" strokeWidth="4"/><text x={(a.x+b.x)/2+8} y={(a.y+b.y)/2-8} fontSize="14" fill="#b42318">DN{s.dn} · {s.length} m</text></g>})}{nodes.map(n=><g key={n.id} onClick={e=>{e.stopPropagation();tool==='delete'?delNode(n.id):setSelected(n.id)}} className="node"><circle cx={n.x} cy={n.y} r={n.kind==='ria'?12:7} fill={selected===n.id?'#dc2626':'#fff'} stroke="#111827" strokeWidth="3"/>{n.kind==='ria'&&<><path d={`M${n.x-14} ${n.y-18}h28v12h-28z`} fill="none" stroke="#dc2626" strokeWidth="3"/><text x={n.x+18} y={n.y+5} fontSize="16" fontWeight="700">{n.label}</text></>}</g>)}</svg></div>}
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+
+type IsoNode = {
+  id: string;
+  x: number;
+  y: number;
+  kind: 'start' | 'junction' | 'ria';
+  label?: string;
+};
+
+type Segment = {
+  id: string;
+  a: string;
+  b: string;
+  dn: number;
+  length: number;
+};
+
+type IsoEditorProps = {
+  initial: {
+    nodes?: IsoNode[];
+    segments?: Segment[];
+    settings?: {
+      dn?: number;
+      length?: number;
+    };
+  };
+  onSave: (data: {
+    nodes: IsoNode[];
+    segments: Segment[];
+    settings: {
+      dn: number;
+      length: number;
+    };
+  }) => void;
+};
+
+const directions: Array<[number, number]> = [
+  [1, 0],
+  [-1, 0],
+  [0.5, 0.866],
+  [-0.5, -0.866],
+  [0.5, -0.866],
+  [-0.5, 0.866],
+  [0, 1],
+  [0, -1],
+];
+
+export default function IsoEditor({
+  initial,
+  onSave,
+}: IsoEditorProps) {
+  const [nodes, setNodes] = useState<IsoNode[]>(
+    initial?.nodes?.length
+      ? initial.nodes
+      : [
+          {
+            id: 'n0',
+            x: 260,
+            y: 500,
+            kind: 'start',
+            label: 'Départ réseau',
+          },
+        ],
+  );
+
+  const [segments, setSegments] = useState<Segment[]>(
+    initial?.segments ?? [],
+  );
+
+  const [selected, setSelected] = useState('n0');
+
+  const [tool, setTool] = useState<'pipe' | 'ria' | 'delete'>(
+    'pipe',
+  );
+
+  const [dn, setDn] = useState(
+    initial?.settings?.dn ?? 65,
+  );
+
+  const [length, setLength] = useState(
+    initial?.settings?.length ?? 10,
+  );
+
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+    }
+
+    timer.current = setTimeout(() => {
+      onSave({
+        nodes,
+        segments,
+        settings: {
+          dn,
+          length,
+        },
+      });
+    }, 700);
+
+    return () => {
+      if (timer.current !== null) {
+        clearTimeout(timer.current);
+      }
+    };
+  }, [nodes, segments, dn, length, onSave]);
+
+  function handleCanvasClick(
+    event: React.MouseEvent<SVGSVGElement>,
+  ) {
+    const target = event.target as SVGElement;
+    const tagName = target.tagName.toLowerCase();
+
+    if (tagName !== 'svg' && tagName !== 'rect') {
+      return;
+    }
+
+    const canvasRect =
+      event.currentTarget.getBoundingClientRect();
+
+    let x = event.clientX - canvasRect.left;
+    let y = event.clientY - canvasRect.top;
+
+    const base =
+      nodes.find((node) => node.id === selected) ??
+      nodes[0];
+
+    if (!base) {
+      return;
+    }
+
+    const dx = x - base.x;
+    const dy = y - base.y;
+
+    const direction = directions.reduce(
+      (best, current) => {
+        const currentProjection = Math.abs(
+          dx * current[0] + dy * current[1],
+        );
+
+        const bestProjection = Math.abs(
+          dx * best[0] + dy * best[1],
+        );
+
+        return currentProjection > bestProjection
+          ? current
+          : best;
+      },
+      directions[0],
+    );
+
+    const projection =
+      dx * direction[0] + dy * direction[1];
+
+    const distance =
+      Math.round(projection / 40) * 40;
+
+    if (distance === 0) {
+      return;
+    }
+
+    x = base.x + direction[0] * distance;
+    y = base.y + direction[1] * distance;
+
+    const nodeId = crypto.randomUUID();
+
+    const newNode: IsoNode = {
+      id: nodeId,
+      x,
+      y,
+      kind: tool === 'ria' ? 'ria' : 'junction',
+      label:
+        tool === 'ria'
+          ? `RIA ${
+              nodes.filter((node) => node.kind === 'ria')
+                .length + 1
+            }`
+          : undefined,
+    };
+
+    setNodes((currentNodes) => [
+      ...currentNodes,
+      newNode,
+    ]);
+
+    setSegments((currentSegments) => [
+      ...currentSegments,
+      {
+        id: crypto.randomUUID(),
+        a: base.id,
+        b: nodeId,
+        dn,
+        length,
+      },
+    ]);
+
+    setSelected(nodeId);
+  }
+
+  function deleteNode(nodeId: string) {
+    if (nodeId === 'n0') {
+      return;
+    }
+
+    setNodes((currentNodes) =>
+      currentNodes.filter((node) => node.id !== nodeId),
+    );
+
+    setSegments((currentSegments) =>
+      currentSegments.filter(
+        (segment) =>
+          segment.a !== nodeId &&
+          segment.b !== nodeId,
+      ),
+    );
+
+    setSelected('n0');
+  }
+
+  return (
+    <div className="editor-shell">
+      <aside>
+        <h3>Outils</h3>
+
+        <button
+          type="button"
+          className={tool === 'pipe' ? 'active' : ''}
+          onClick={() => setTool('pipe')}
+        >
+          Tuyau
+        </button>
+
+        <button
+          type="button"
+          className={tool === 'ria' ? 'active' : ''}
+          onClick={() => setTool('ria')}
+        >
+          RIA
+        </button>
+
+        <button
+          type="button"
+          className={tool === 'delete' ? 'active' : ''}
+          onClick={() => setTool('delete')}
+        >
+          Supprimer
+        </button>
+
+        <label>
+          Diamètre
+
+          <select
+            value={dn}
+            onChange={(event) =>
+              setDn(Number(event.target.value))
+            }
+          >
+            {[25, 32, 40, 50, 65, 80, 100].map(
+              (diameter) => (
+                <option
+                  key={diameter}
+                  value={diameter}
+                >
+                  DN{diameter}
+                </option>
+              ),
+            )}
+          </select>
+        </label>
+
+        <label>
+          Longueur réelle
+
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={length}
+            onChange={(event) =>
+              setLength(Number(event.target.value))
+            }
+          />
+        </label>
+
+        <p>
+          Clique sur un point, puis clique sur la
+          grille. Le tracé est automatiquement verrouillé
+          en direction isométrique.
+        </p>
+      </aside>
+
+      <svg
+        className="canvas"
+        onClick={handleCanvasClick}
+        viewBox="0 0 1200 700"
+      >
+        <defs>
+          <pattern
+            id="grid"
+            width="40"
+            height="34.64"
+            patternUnits="userSpaceOnUse"
+          >
+            <path
+              d="M0 34.64L20 0M20 0L40 34.64M0 17.32H40"
+              fill="none"
+              stroke="#e7ebf0"
+              strokeWidth="1"
+            />
+          </pattern>
+        </defs>
+
+        <rect
+          width="1200"
+          height="700"
+          fill="url(#grid)"
+        />
+
+        {segments.map((segment) => {
+          const startNode = nodes.find(
+            (node) => node.id === segment.a,
+          );
+
+          const endNode = nodes.find(
+            (node) => node.id === segment.b,
+          );
+
+          if (!startNode || !endNode) {
+            return null;
+          }
+
+          return (
+            <g key={segment.id}>
+              <line
+                x1={startNode.x}
+                y1={startNode.y}
+                x2={endNode.x}
+                y2={endNode.y}
+                stroke="#111827"
+                strokeWidth="4"
+              />
+
+              <text
+                x={(startNode.x + endNode.x) / 2 + 8}
+                y={(startNode.y + endNode.y) / 2 - 8}
+                fontSize="14"
+                fill="#b42318"
+              >
+                DN{segment.dn} · {segment.length} m
+              </text>
+            </g>
+          );
+        })}
+
+        {nodes.map((node) => (
+          <g
+            key={node.id}
+            className="node"
+            onClick={(event) => {
+              event.stopPropagation();
+
+              if (tool === 'delete') {
+                deleteNode(node.id);
+                return;
+              }
+
+              setSelected(node.id);
+            }}
+          >
+            <circle
+              cx={node.x}
+              cy={node.y}
+              r={node.kind === 'ria' ? 12 : 7}
+              fill={
+                selected === node.id
+                  ? '#dc2626'
+                  : '#ffffff'
+              }
+              stroke="#111827"
+              strokeWidth="3"
+            />
+
+            {node.kind === 'ria' && (
+              <>
+                <path
+                  d={`M${node.x - 14} ${
+                    node.y - 18
+                  }h28v12h-28z`}
+                  fill="none"
+                  stroke="#dc2626"
+                  strokeWidth="3"
+                />
+
+                <text
+                  x={node.x + 18}
+                  y={node.y + 5}
+                  fontSize="16"
+                  fontWeight="700"
+                >
+                  {node.label}
+                </text>
+              </>
+            )}
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}

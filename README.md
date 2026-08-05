@@ -1,17 +1,8 @@
-# Evo ISO RIA
-Application personnelle de création de plans isométriques RIA.
+"use client";
 
-## Installation
-1. `cp .env.example .env`
-2. Configurer `DATABASE_URL` et `AUTH_SECRET`
-3. `npm install`
-4. `npx prisma db push`
-5. `npm run db:seed`
-6. `npm run dev`
+import type { ReactNode } from "react";
 
-Compte initial : `admin@ria.local` / `Admin123!` (à changer après le premier déploiement).
-
-## Déploiement Render + Supabase
-- Build : `npm install && npx prisma generate && npm run build`
-- Start : `npm start`
-- Variables : `DATABASE_URL`, `AUTH_SECRET`
+export function Modal({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
+  if (!open) return null;
+  return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><section className="modal-card"><header><h3>{title}</h3><button className="icon-button" onClick={onClose} aria-label="Fermer">×</button></header>{children}</section></div>;
+}

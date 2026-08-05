@@ -1,4 +1,3 @@
-/// <reference types="next" />
-/// <reference types="next/image-types/global" />
-
-// NOTE: This file should not be edited
+import {NextResponse} from 'next/server';import {db} from '@/lib/db';import {requireSession} from '@/lib/auth';import bcrypt from 'bcryptjs';
+export async function GET(){const s=await requireSession();if(s.role!=='ADMIN')return NextResponse.json({error:'Interdit'},{status:403});return NextResponse.json(await db.user.findMany({select:{id:true,name:true,email:true,role:true,status:true,lastLoginAt:true,createdAt:true},orderBy:{createdAt:'desc'}}))}
+export async function POST(req:Request){const s=await requireSession();if(s.role!=='ADMIN')return NextResponse.json({error:'Interdit'},{status:403});const b=await req.json();const passwordHash=await bcrypt.hash(b.password,12);return NextResponse.json(await db.user.create({data:{name:b.name,email:b.email.toLowerCase(),passwordHash,role:b.role==='ADMIN'?'ADMIN':'USER'}}))}

@@ -1,0 +1,3 @@
+import {NextResponse} from 'next/server';import {db} from '@/lib/db';import {requireSession} from '@/lib/auth';
+export async function GET(req:Request){await requireSession();const id=new URL(req.url).searchParams.get('projectId');return NextResponse.json(await db.isometry.findMany({where:id?{projectId:id}:{},include:{project:true},orderBy:{updatedAt:'desc'}}))}
+export async function POST(req:Request){const s=await requireSession();const b=await req.json();return NextResponse.json(await db.isometry.create({data:{name:b.name,projectId:b.projectId,createdById:s.id,data:{nodes:[],segments:[],settings:{paper:'A3',grid:true}}}}))}

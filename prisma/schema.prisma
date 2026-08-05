@@ -7,8 +7,49 @@ datasource db {
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
-enum Role { ADMIN USER }
-enum UserStatus { ACTIVE DISABLED }
-model User { id String @id @default(cuid()) name String email String @unique passwordHash String role Role @default(USER) status UserStatus @default(ACTIVE) lastLoginAt DateTime? createdAt DateTime @default(now()) updatedAt DateTime @updatedAt isometries Isometry[] @relation("CreatedBy") }
-model Project { id String @id @default(cuid()) name String address String? city String? client String? createdAt DateTime @default(now()) updatedAt DateTime @updatedAt isometries Isometry[] }
-model Isometry { id String @id @default(cuid()) name String projectId String project Project @relation(fields:[projectId],references:[id],onDelete:Cascade) createdById String createdBy User @relation("CreatedBy",fields:[createdById],references:[id]) data Json @default("{\"nodes\":[],\"segments\":[],\"settings\":{}}") createdAt DateTime @default(now()) updatedAt DateTime @updatedAt }
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  role         Role         @default(USER)
+  status       UserStatus   @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  isometries   Isometry[]   @relation("CreatedBy")
+}
+
+model Project {
+  id         String      @id @default(cuid())
+  name       String
+  address    String?
+  city       String?
+  client     String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  isometries Isometry[]
+}
+
+model Isometry {
+  id          String   @id @default(cuid())
+  name        String
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
+  data        Json     @default("{\"nodes\":[],\"segments\":[],\"settings\":{}}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
